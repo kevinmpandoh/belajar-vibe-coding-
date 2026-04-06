@@ -1,22 +1,23 @@
 import { db } from '../db';
 import { users, sessions } from '../db/schema';
 import { eq } from 'drizzle-orm';
+import { UnauthorizedError } from '../utils/errors';
 
 export const usersService = {
   async registerUser(userData: typeof users.$inferInsert) {
     // 1. Check if user already exists
-    const existingUser = await db
+    const [existingUser] = await db
       .select()
       .from(users)
-      .where(eq(users.email, userData.email))
+      .where(eq(users.email, userData.email!))
       .limit(1);
 
-    if (existingUser.length > 0) {
+    if (existingUser) {
       throw new Error('Email already exists');
     }
 
     // 2. Hash password
-    const hashedPassword = await Bun.password.hash(userData.password, {
+    const hashedPassword = await Bun.password.hash(userData.password!, {
       algorithm: 'bcrypt',
       cost: 10,
     });
@@ -55,8 +56,8 @@ export const usersService = {
     // 4. Create session
     await db.insert(sessions).values({
       token,
-      userId: user.id as any, // Cast because of bigint/number differences in Drizzle sometimes
-    });
+      userId: user.id, // Now matches schema (bigint)
+    } as any); // cast as any here because of Drizzle's strict $inferInsert with non-serial bigints
 
     return { data: token };
   },
@@ -76,9 +77,20 @@ export const usersService = {
       .limit(1);
 
     if (!result) {
-      throw new Error('Unauthorized');
+      throw new UnauthorizedError();
     }
 
     return { data: result };
+  },
+
+  async logoutUser(token: string) {
+    // 1. Delete session where token matches
+    const result = await db.delete(sessions).where(eq(sessions.token, token));
+
+    if (result[0].affectedRows === 0) {
+      throw new UnauthorizedError();
+    }
+
+    return { data: 'OK' };
   },
 };

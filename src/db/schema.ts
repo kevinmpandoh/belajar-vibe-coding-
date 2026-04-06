@@ -1,7 +1,7 @@
 import { mysqlTable, serial, varchar, text, timestamp, int, bigint } from 'drizzle-orm/mysql-core';
 
 export const users = mysqlTable('users', {
-  id: serial('id').primaryKey(),
+  id: bigint('id', { mode: 'number', unsigned: true }).primaryKey().autoincrement(),
   name: varchar('name', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull().unique(),
   password: varchar('password', { length: 255 }).notNull(),
@@ -9,8 +9,8 @@ export const users = mysqlTable('users', {
 });
 
 export const sessions = mysqlTable('sessions', {
-  id: serial('id').primaryKey(),
+  id: bigint('id', { mode: 'number', unsigned: true }).primaryKey().autoincrement(),
   token: varchar('token', { length: 255 }).notNull().unique(),
-  userId: bigint('user_id', { mode: 'bigint', unsigned: true }).references(() => users.id),
+  userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id),
   createdAt: timestamp('created_at').defaultNow(),
 });
