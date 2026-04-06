@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { users } from '../db/schema';
+import { users, sessions } from '../db/schema';
 import { eq } from 'drizzle-orm';
 
 export const usersService = {
@@ -28,5 +28,36 @@ export const usersService = {
     });
 
     return { data: 'OK' };
+  },
+
+  async loginUser(credentials: Pick<typeof users.$inferInsert, 'email' | 'password'>) {
+    // 1. Find user by email
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, credentials.email))
+      .limit(1);
+
+    if (!user) {
+      throw new Error('Email atau password salah');
+    }
+
+    // 2. Verify password
+    const isPasswordValid = await Bun.password.verify(credentials.password, user.password);
+
+    if (!isPasswordValid) {
+      throw new Error('Email atau password salah');
+    }
+
+    // 3. Generate session token
+    const token = crypto.randomUUID();
+
+    // 4. Create session
+    await db.insert(sessions).values({
+      token,
+      userId: user.id as any, // Cast because of bigint/number differences in Drizzle sometimes
+    });
+
+    return { data: token };
   },
 };
