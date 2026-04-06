@@ -1,10 +1,11 @@
 import { Elysia, t } from 'elysia';
 import { usersService } from '../services/users-service';
+import { UnauthorizedError } from '../utils/errors';
 
 export const usersRoute = new Elysia({ prefix: '/api' })
   .post('/users', async ({ body, set }) => {
     try {
-      return await usersService.registerUser(body);
+      return await usersService.registerUser(body as any);
     } catch (error: any) {
       if (error.message === 'Email already exists') {
         set.status = 400;
@@ -37,17 +38,24 @@ export const usersRoute = new Elysia({ prefix: '/api' })
       password: t.String(),
     })
   })
-  .get('/users/current', async ({ headers, set }) => {
+  .derive(({ headers }) => {
     const authHeader = headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      set.status = 401;
-      return { error: 'Unauthorized' };
+      return { token: null };
     }
 
     const parts = authHeader.split(' ');
     const token = parts[1];
+
     if (parts.length !== 2 || !token) {
+      return { token: null };
+    }
+
+    return { token };
+  })
+  .get('/users/current', async ({ token, set }) => {
+    if (!token) {
       set.status = 401;
       return { error: 'Unauthorized' };
     }
@@ -55,7 +63,7 @@ export const usersRoute = new Elysia({ prefix: '/api' })
     try {
       return await usersService.getCurrentUser(token);
     } catch (error: any) {
-      if (error.message === 'Unauthorized') {
+      if (error instanceof UnauthorizedError) {
         set.status = 401;
         return { error: 'Unauthorized' };
       }
@@ -63,17 +71,8 @@ export const usersRoute = new Elysia({ prefix: '/api' })
       return { error: 'Internal Server Error' };
     }
   })
-  .delete('/users/logout', async ({ headers, set }) => {
-    const authHeader = headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      set.status = 401;
-      return { error: 'Unauthorized' };
-    }
-
-    const parts = authHeader.split(' ');
-    const token = parts[1];
-    if (parts.length !== 2 || !token) {
+  .delete('/users/logout', async ({ token, set }) => {
+    if (!token) {
       set.status = 401;
       return { error: 'Unauthorized' };
     }
@@ -81,7 +80,7 @@ export const usersRoute = new Elysia({ prefix: '/api' })
     try {
       return await usersService.logoutUser(token);
     } catch (error: any) {
-      if (error.message === 'Unauthorized') {
+      if (error instanceof UnauthorizedError) {
         set.status = 401;
         return { error: 'Unauthorized' };
       }
