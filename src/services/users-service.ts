@@ -81,4 +81,15 @@ export const usersService = {
 
     return { data: result };
   },
+
+  async logoutUser(token: string) {
+    // 1. Delete session where token matches
+    const result = await db.delete(sessions).where(eq(sessions.token, token));
+
+    if (result[0].affectedRows === 0) {
+      throw new Error('Unauthorized');
+    }
+
+    return { data: 'OK' };
+  },
 };
